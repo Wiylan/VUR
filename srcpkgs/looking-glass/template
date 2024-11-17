@@ -1,0 +1,55 @@
+# Template file for 'looking-glass'
+pkgname=looking-glass
+version=B7.rc1.34
+revision=1
+_git=e25492a3
+archs="x86_64"
+short_desc="KVM Frame Relay implementation for VGA PCI Passthrough"
+
+homepage="https://looking-glass.io"
+license="GPL-2.0-or-later"
+maintainer="Wiylan <wiylan@outlook.com>"
+
+_version=${version//./-}
+distfiles="$homepage/artifact/$_version-$_git/source>$pkgname-$_version.tar.gz"
+checksum=148fcae20f96b4a69c2cc36273e3824f7821861e111b3ceeafd9a5b43172e7f6
+
+build_style="cmake"
+build_wrksrc="client"
+configure_args="-DENABLE_BACKTRACE=0"
+depends="dejavu-fonts-ttf"
+hostmakedepends="pkg-config"
+makedepends="spice-protocol freefont-ttf binutils-devel SDL2-devel SDL2_ttf-devel
+ libX11-devel libXpresent-devel libXinerama-devel nettle-devel fontconfig-devel obs-devel"
+
+post_configure() {
+	build_wrksrc="obs"
+	cd ${wrksrc}/${build_wrksrc}
+	do_configure
+}
+
+post_build() {
+	build_wrksrc="obs"
+	cd ${wrksrc}/${build_wrksrc}
+	do_build
+}
+
+looking-glass-dkms_package() {
+	short_desc+=" - DKMS module"
+	_package_version="0.0.11"
+	dkms_modules="kvmfr ${_package_version}"
+	build_wrksrc="module"
+	depends="dkms"
+	pkg_install() {
+		vmkdir usr/src/kvmfr-${_package_version}
+		vcopy ${wrksrc}/${build_wrksrc}/* usr/src/kvmfr-${_package_version}
+	}
+}
+
+looking-glass-obs_package() {
+	short_desc+=" - OBS plugin"
+	build_wrksrc="obs"
+	pkg_install() {
+		vinstall ${wrksrc}/${build_wrksrc}/build/liblooking-glass-obs.so 0755 usr/lib/obs-plugins
+	}
+}
