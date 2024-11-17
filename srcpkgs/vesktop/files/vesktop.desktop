@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Vesktop
+GenericName=Internet Messenger
+Comment=Custom Discord App
+Type=Application
+Exec=vesktop
+Icon=vesktop
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+StartupWMClass=Vesktop
+Keywords=discord;vencord;electron;chat;
