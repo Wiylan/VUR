@@ -11,7 +11,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  TAG: action
+  TAG: action-${{ github.run_number }}
+  SHA: ${{ github.sha }}
 
 jobs:
   build:
@@ -43,7 +44,7 @@ jobs:
       - name: Prepare Static XBPS
         run: |
           mkdir --parents /opt/xbps
-          curl --location --remote-name http://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
+          curl --location --remote-name https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
           tar --verbose --extract --file xbps-static-latest.x86_64-musl.tar.xz --directory /opt/xbps
           rm xbps-static-latest.x86_64-musl.tar.xz
 
@@ -60,23 +61,23 @@ jobs:
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
 
-          git fetch origin
-          git merge --strategy-option=ours --allow-unrelated-histories origin/main
+          git merge --strategy-option=ours --allow-unrelated-histories $SHA
 
           mkdir --parents hostdir/binpkgs
-          gh release download $TAG --pattern "*$ARCH*" --dir hostdir/binpkgs || true
-          if [[ $ARCH == x86_64 ]]; then
-            rm --force hostdir/binpkgs/*x86_64-musl*
-          fi
+          gh release download --pattern "*$ARCH*" --dir hostdir/binpkgs || true
+          [[ $ARCH == x86_64 ]] && find hostdir/binpkgs -name '*x86_64-musl*' -delete
 
       - name: Changed Packages
         working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           export PATH="/opt/xbps/usr/bin:$PATH"
 
-          TAG_SHA=$(git rev-list --max-count=1 $TAG || git rev-list --max-parents=0 origin/main)
+          LATEST_TAG_NAME=$(gh release view --json tagName --jq '.tagName')
+          LATEST_TAG_SHA=$(git rev-list --max-count=1 $LATEST_TAG_NAME || git rev-list --max-parents=0 origin/main)
 
-          git diff-tree -r --no-renames --name-only --diff-filter=AM $TAG_SHA origin/main -- 'srcpkgs/**' |
+          git diff-tree -r --no-renames --name-only --diff-filter=AM $LATEST_TAG_SHA $SHA -- 'srcpkgs/**' |
             cut -d/ -f 2 |
             xargs ./xbps-src sort-dependencies |
             tee /tmp/templates
@@ -132,8 +133,6 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     needs: build
-    env:
-      SHA: ${{ github.sha }}
 
     steps:
       - name: Checkout GitHub Repository
@@ -155,17 +154,6 @@ jobs:
           sha256sum * | tee /tmp/sha256sum.txt
 
           echo "SHORT_SHA=$(git rev-parse --short $SHA)" >> $GITHUB_ENV
-
-      - name: Delete Release
-        working-directory: ${{ github.workspace }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release delete $TAG --cleanup-tag; then
-            echo "Release $TAG deleted successfully."
-          else
-            echo "Failed to delete release $TAG."
-          fi
 
       - name: Release Repository
         uses: softprops/action-gh-release@v2
