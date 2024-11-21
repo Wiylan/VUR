@@ -66,7 +66,9 @@ jobs:
 
           mkdir --parents hostdir/binpkgs
           gh release download --pattern "*$ARCH*" --dir hostdir/binpkgs || true
-          [[ $ARCH == x86_64 ]] && rm --force hostdir/binpkgs/*x86_64-musl*
+          if [[ $ARCH == x86_64 ]]; then
+            rm --force hostdir/binpkgs/*x86_64-musl*
+          fi
 
       - name: Changed Packages
         working-directory: ${{ github.workspace }}
