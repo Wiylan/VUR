@@ -65,7 +65,7 @@ jobs:
 
           mkdir --parents hostdir/binpkgs
           gh release download --pattern "*$ARCH*" --dir hostdir/binpkgs || true
-          [[ $ARCH == x86_64 ]] && find hostdir/binpkgs -name '*x86_64-musl*' -delete
+          [[ $ARCH == x86_64 ]] && rm --force hostdir/binpkgs/*x86_64-musl*
 
       - name: Changed Packages
         working-directory: ${{ github.workspace }}
@@ -75,7 +75,7 @@ jobs:
           export PATH="/opt/xbps/usr/bin:$PATH"
 
           LATEST_TAG_NAME=$(gh release view --json tagName --jq '.tagName')
-          LATEST_TAG_SHA=$(git rev-list --max-count=1 $LATEST_TAG_NAME || git rev-list --max-parents=0 origin/main)
+          LATEST_TAG_SHA=$(git rev-list --max-count=1 $LATEST_TAG_NAME || git rev-list --max-parents=0 main)
 
           git diff-tree -r --no-renames --name-only --diff-filter=AM $LATEST_TAG_SHA $SHA -- 'srcpkgs/**' |
             cut -d/ -f 2 |
