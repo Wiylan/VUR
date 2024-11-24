@@ -78,7 +78,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           LATEST_TAG_NAME=$(gh release view --json tagName --jq '.tagName' || true)
-          LATEST_TAG_SHA=$(git rev-list --max-count=1 $LATEST_TAG_NAME || git rev-list --max-parents=0 origin/$CUSTOM_BRANCH)
+          LATEST_TAG_SHA=$(git rev-list --max-count=1 $LATEST_TAG_NAME 2>/dev/null || git rev-list --max-parents=0 origin/$CUSTOM_BRANCH)
 
           git diff-tree -r --no-renames --name-only --diff-filter=AM $LATEST_TAG_SHA $SHA -- 'srcpkgs/**' |
             cut -d/ -f 2 |
@@ -102,8 +102,8 @@ jobs:
       - name: Cleanup Repository
         working-directory: ${{ github.workspace }}/hostdir/binpkgs
         run: |
-          xbps-rindex --remove-obsoletes $PWD
           xbps-rindex --clean $PWD
+          xbps-rindex --remove-obsoletes $PWD
 
       - name: Sign Repository
         working-directory: ${{ github.workspace }}/hostdir/binpkgs
