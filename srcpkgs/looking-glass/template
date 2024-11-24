@@ -1,7 +1,7 @@
 # Template file for 'looking-glass'
 pkgname=looking-glass
 version=B7.rc1.34
-revision=2
+revision=1
 _git=e25492a3
 archs="x86_64"
 short_desc="KVM Frame Relay implementation for VGA PCI Passthrough"
