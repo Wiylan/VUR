@@ -28,7 +28,7 @@ jobs:
     env:
       ARCH: ${{ matrix.config.arch }}
       XBPS_TARGET_ARCH: ${{ matrix.config.arch }}
-      PATH: "/opt/xbps/usr/bin:${{ env.PATH }}"
+      PATH: "/opt/xbps/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/sbin:/usr/local/bin:/tmp/bin"
 
     steps:
       - name: Free Space
