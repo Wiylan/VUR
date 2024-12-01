@@ -17,6 +17,7 @@ Refer to [void-linux/void-packages](https://github.com/void-linux/void-packages)
 - looking-glass
     - looking-glass-dkms
     - looking-glass-obs
+- vesktop
 
 ## Installing
 
