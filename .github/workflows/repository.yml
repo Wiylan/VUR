@@ -1,0 +1,161 @@
+name: Repository
+
+env:
+  VUR_BRANCH: main
+  VOID_BRANCH: master
+  TAG: workflow-${{ github.run_number }}
+  SHA: ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - srcpkgs/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - { arch: x86_64 }
+          #- { arch: x86_64-musl }
+    env:
+      ARCH: ${{ matrix.config.arch }}
+      XBPS_TARGET_ARCH: ${{ matrix.config.arch }}
+      PATH: "/opt/xbps/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/sbin:/usr/local/bin:/tmp/bin"
+
+    steps:
+      - name: Free Space
+        run: |
+          echo "Removing Android library..."
+          sudo rm --recursive --force /usr/local/lib/android
+
+          echo "Removing .NET runtime..."
+          sudo rm --recursive --force /usr/share/dotnet
+
+          echo "Removing Haskell runtime..."
+          sudo rm --recursive --force /opt/ghc
+          sudo rm --recursive --force /usr/local/.ghcup
+
+      - name: Prepare Static XBPS
+        run: |
+          mkdir --parents /opt/xbps
+          curl --location --remote-name https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
+          tar --verbose --extract --file xbps-static-latest.x86_64-musl.tar.xz --directory /opt/xbps
+          rm xbps-static-latest.x86_64-musl.tar.xz
+
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.VOID_BRANCH }}
+
+      - name: Merge GitHub Repository
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+          git fetch
+          git merge --strategy-option=ours --allow-unrelated-histories $SHA
+
+          mkdir --parents hostdir/binpkgs
+          gh release download --pattern "*$ARCH*" --dir hostdir/binpkgs || true
+          if [[ $ARCH == x86_64 ]]; then
+            rm --force hostdir/binpkgs/*x86_64-musl*
+          fi
+
+      - name: Changed Packages
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_name=$(gh release view --json tagName --jq '.tagName' || echo "Initial Commit")
+          latest_sha=$(git rev-list --max-count=1 $latest_name 2>/dev/null || git rev-list --max-parents=0 origin/$VUR_BRANCH)
+          echo "Latest Tag Name: $latest_name"
+          echo "Latest Tag SHA: $latest_sha"
+
+          git diff-tree -r --no-renames --name-only --diff-filter=AM $latest_sha $SHA -- 'srcpkgs/**' |
+            cut -d/ -f 2 |
+              xargs ./xbps-src sort-dependencies |
+                tee /tmp/templates
+
+      - name: Bootstrap xbps-src
+        working-directory: ${{ github.workspace }}
+        run: |
+          ./xbps-src -m masterdir-$ARCH -A $ARCH binary-bootstrap
+
+      - name: Build Packages
+        working-directory: ${{ github.workspace }}
+        run: |
+          pkgs=$(cat /tmp/templates)
+
+          for pkg in ${pkgs}; do
+            ./xbps-src -1 -j$(nproc) -m masterdir-$ARCH pkg "$pkg" || echo "Failed to build $pkg"
+          done
+
+      - name: Cleanup Repository
+        working-directory: ${{ github.workspace }}/hostdir/binpkgs
+        run: |
+          xbps-rindex --clean $PWD
+          xbps-rindex --remove-obsoletes $PWD
+
+      - name: Sign Repository
+        working-directory: ${{ github.workspace }}/hostdir/binpkgs
+        env:
+          PRIVKEY: ${{ secrets.PRIVKEY }}
+          XBPS_PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          echo "$PRIVKEY" > privkey.pem
+
+          xbps-rindex --privkey privkey.pem --sign --signedby "GitHub Actions" $PWD || true
+          xbps-rindex --privkey privkey.pem --sign-pkg $PWD/*.xbps || true
+
+          rm privkey.pem
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.config.arch }}-repodata
+          path: ${{ github.workspace }}/hostdir/binpkgs
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: repodata
+
+      - name: Merge Artifacts
+        run: |
+          mkdir merge
+          cp --verbose repodata/*/* merge
+
+      - name: SHA256
+        working-directory: merge
+        run: |
+          sha256sum * | tee /tmp/sha256sum.txt
+
+          echo "SHORT_SHA=$(git rev-parse --short $SHA)" >> $GITHUB_ENV
+
+      - name: Release Repository
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.SHORT_SHA }}
+          tag_name: ${{ env.TAG }}
+          body_path: /tmp/sha256sum.txt
+          files: merge/*
