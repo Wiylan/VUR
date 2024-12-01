@@ -14,6 +14,10 @@ Refer to [void-linux/void-packages](https://github.com/void-linux/void-packages)
 
 ## Packages
 
+- looking-glass
+    - looking-glass-dkms
+    - looking-glass-obs
+
 ## Installing
 
 ### Automatic
