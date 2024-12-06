@@ -1,6 +1,6 @@
 # Template file for 'vesktop'
 pkgname=vesktop
-version=1.5.3
+version=1.5.4
 revision=1
 archs="x86_64"
 short_desc="Custom Discord App aiming to improve linux support"
@@ -10,9 +10,11 @@ license="GPL-3.0-or-later"
 maintainer="Wiylan <wiylan@outlook.com>"
 
 distfiles="$homepage/archive/v${version}.tar.gz"
-checksum=615ed9275a03974a0c6486c0095cfcd0af246363a4f62ec0bdc985c763cc6334
+checksum=ad43c34a8623ceee9565b41bc0f7cc7ffa3a105d73c0620cc9ed4ab8b416c728
 
-hostmakedepends="pnpm"
+hostmakedepends="
+ pnpm
+"
 
 do_configure() {
 	pnpm install --frozen-lockfile
